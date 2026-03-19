@@ -1,15 +1,14 @@
 name: Telegram Notifications
 
-# События, на которые реагируем
 on:
   push:
-    branches: [ main ]  # коммиты в main ветку
+    branches: [ main ]
   issues:
-    types: [opened, closed, reopened]  # новые issues
+    types: [opened, closed, reopened]
   release:
-    types: [published, edited, deleted]  # релизы (то, что ты хотел!)
+    types: [published, edited, deleted]
   pull_request:
-    types: [opened, closed]  # пул-реквесты
+    types: [opened, closed]
 
 jobs:
   notify:
@@ -22,7 +21,7 @@ jobs:
         run: |
           # Определяем тип события и формируем сообщение
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            MESSAGE="📦 *Новый коммит!*%0A"
+            MESSAGE="📦 *Новый коммит\!*%0A"
             MESSAGE+="📁 ${{ github.repository }}%0A"
             MESSAGE+="👤 ${{ github.actor }}%0A"
             MESSAGE+="📝 ${{ github.event.head_commit.message }}%0A"
@@ -30,11 +29,11 @@ jobs:
           
           elif [[ "${{ github.event_name }}" == "issues" ]]; then
             if [[ "${{ github.event.action }}" == "opened" ]]; then
-              MESSAGE="🐛 *Новый Issue!*%0A"
+              MESSAGE="🐛 *Новый Issue\!*%0A"
             elif [[ "${{ github.event.action }}" == "closed" ]]; then
-              MESSAGE="✅ *Issue закрыт!*%0A"
+              MESSAGE="✅ *Issue закрыт\!*%0A"
             else
-              MESSAGE="🔄 *Issue обновлен!*%0A"
+              MESSAGE="🔄 *Issue обновлен\!*%0A"
             fi
             MESSAGE+="📁 ${{ github.repository }}%0A"
             MESSAGE+="📌 #${{ github.event.issue.number }}: ${{ github.event.issue.title }}%0A"
@@ -43,11 +42,11 @@ jobs:
           
           elif [[ "${{ github.event_name }}" == "release" ]]; then
             if [[ "${{ github.event.action }}" == "published" ]]; then
-              MESSAGE="🎉 *Новый релиз!*%0A"
+              MESSAGE="🎉 *Новый релиз\!*%0A"
             elif [[ "${{ github.event.action }}" == "edited" ]]; then
-              MESSAGE="✏️ *Релиз изменен!*%0A"
+              MESSAGE="✏️ *Релиз изменен\!*%0A"
             elif [[ "${{ github.event.action }}" == "deleted" ]]; then
-              MESSAGE="🗑️ *Релиз удален!*%0A"
+              MESSAGE="🗑️ *Релиз удален\!*%0A"
             fi
             MESSAGE+="📁 ${{ github.repository }}%0A"
             MESSAGE+="🏷️ ${{ github.event.release.tag_name }}%0A"
@@ -56,18 +55,42 @@ jobs:
           
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             if [[ "${{ github.event.action }}" == "opened" ]]; then
-              MESSAGE="🔀 *Новый Pull Request!*%0A"
+              MESSAGE="🔀 *Новый Pull Request\!*%0A"
             else
-              MESSAGE="🔀 *PR ${{ github.event.action }}!*%0A"
+              MESSAGE="🔀 *PR ${{ github.event.action }}\!*%0A"
             fi
             MESSAGE+="📁 ${{ github.repository }}%0A"
             MESSAGE+="📌 #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}%0A"
             MESSAGE+="👤 ${{ github.event.pull_request.user.login }}%0A"
             MESSAGE+="🔗 ${{ github.event.pull_request.html_url }}"
+          else
+            MESSAGE="🔄 *Событие в GitHub*%0A"
+            MESSAGE+="📁 ${{ github.repository }}%0A"
+            MESSAGE+="Тип: ${{ github.event_name }}"
           fi
           
+          # Проверяем, что сообщение не пустое
+          if [[ -z "$MESSAGE" ]]; then
+            echo "❌ Ошибка: сообщение пустое"
+            exit 1
+          fi
+          
+          echo "📤 Отправляю сообщение:"
+          echo "$MESSAGE"
+          
           # Отправляем в Telegram
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+          RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
             -d chat_id="${TELEGRAM_CHAT_ID}" \
             -d text="${MESSAGE}" \
-            -d parse_mode="Markdown"
+            -d parse_mode="Markdown")
+          
+          echo "📥 Ответ от Telegram:"
+          echo "$RESPONSE"
+          
+          # Проверяем успешность
+          if echo "$RESPONSE" | grep -q '"ok":true'; then
+            echo "✅ Успешно отправлено!"
+          else
+            echo "❌ Ошибка отправки"
+            exit 1
+          fi
