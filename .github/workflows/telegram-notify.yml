@@ -1,1 +1,73 @@
+name: Telegram Notifications
 
+# События, на которые реагируем
+on:
+  push:
+    branches: [ main ]  # коммиты в main ветку
+  issues:
+    types: [opened, closed, reopened]  # новые issues
+  release:
+    types: [published, edited, deleted]  # релизы (то, что ты хотел!)
+  pull_request:
+    types: [opened, closed]  # пул-реквесты
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send notification to Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          # Определяем тип события и формируем сообщение
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            MESSAGE="📦 *Новый коммит!*%0A"
+            MESSAGE+="📁 ${{ github.repository }}%0A"
+            MESSAGE+="👤 ${{ github.actor }}%0A"
+            MESSAGE+="📝 ${{ github.event.head_commit.message }}%0A"
+            MESSAGE+="🔗 https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+          
+          elif [[ "${{ github.event_name }}" == "issues" ]]; then
+            if [[ "${{ github.event.action }}" == "opened" ]]; then
+              MESSAGE="🐛 *Новый Issue!*%0A"
+            elif [[ "${{ github.event.action }}" == "closed" ]]; then
+              MESSAGE="✅ *Issue закрыт!*%0A"
+            else
+              MESSAGE="🔄 *Issue обновлен!*%0A"
+            fi
+            MESSAGE+="📁 ${{ github.repository }}%0A"
+            MESSAGE+="📌 #${{ github.event.issue.number }}: ${{ github.event.issue.title }}%0A"
+            MESSAGE+="👤 ${{ github.event.issue.user.login }}%0A"
+            MESSAGE+="🔗 ${{ github.event.issue.html_url }}"
+          
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            if [[ "${{ github.event.action }}" == "published" ]]; then
+              MESSAGE="🎉 *Новый релиз!*%0A"
+            elif [[ "${{ github.event.action }}" == "edited" ]]; then
+              MESSAGE="✏️ *Релиз изменен!*%0A"
+            elif [[ "${{ github.event.action }}" == "deleted" ]]; then
+              MESSAGE="🗑️ *Релиз удален!*%0A"
+            fi
+            MESSAGE+="📁 ${{ github.repository }}%0A"
+            MESSAGE+="🏷️ ${{ github.event.release.tag_name }}%0A"
+            MESSAGE+="📌 ${{ github.event.release.name }}%0A"
+            MESSAGE+="🔗 ${{ github.event.release.html_url }}"
+          
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            if [[ "${{ github.event.action }}" == "opened" ]]; then
+              MESSAGE="🔀 *Новый Pull Request!*%0A"
+            else
+              MESSAGE="🔀 *PR ${{ github.event.action }}!*%0A"
+            fi
+            MESSAGE+="📁 ${{ github.repository }}%0A"
+            MESSAGE+="📌 #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}%0A"
+            MESSAGE+="👤 ${{ github.event.pull_request.user.login }}%0A"
+            MESSAGE+="🔗 ${{ github.event.pull_request.html_url }}"
+          fi
+          
+          # Отправляем в Telegram
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d text="${MESSAGE}" \
+            -d parse_mode="Markdown"
